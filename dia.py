@@ -185,7 +185,7 @@ if st.session_state.pagina_atual == "Reporte":
             )
             tipo_reporte = st.selectbox(
                 "Tipo de Reporte *",
-                ["Comunicação de Acidentes", "Passagem de Turno", "OOT", "Outros"],
+                [" ","Comunicação de Acidentes", "Passagem de Turno", "OOT", "Outros"],
             )
         with col2:
             turno = st.selectbox(
