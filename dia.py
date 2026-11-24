@@ -194,7 +194,7 @@ if st.session_state.pagina_atual == "Reporte":
             )
 
         passagem_turno = st.text_area(
-            "Passagem de Turno *",
+            "Reporte Detalhado *",
             placeholder="Descreva as ocorrências, status da operação e pendências para o próximo turno...",
             height=140,
         )
