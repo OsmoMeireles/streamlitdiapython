@@ -16,11 +16,11 @@ with st.sidebar:
     col_btn1, col_btn2 = st.columns(2)
 
     if "pagina_atual" not in st.session_state:
-        st.session_state.pagina_atual = "Cadastro"
+        st.session_state.pagina_atual = "Reporte"
 
     with col_btn1:
         if st.button("📝 Cadastro", use_container_width=True):
-            st.session_state.pagina_atual = "Cadastro"
+            st.session_state.pagina_atual = "Reporte"
     with col_btn2:
         if st.button("📊 OOT", use_container_width=True):
             st.session_state.pagina_atual = "OOT"
@@ -30,9 +30,9 @@ with st.sidebar:
 
 
 # ==============================================================================
-# PÁGINA 1: CADASTRO
+# PÁGINA 1: REPORTE
 # ==============================================================================
-if st.session_state.pagina_atual == "Cadastro":
+if st.session_state.pagina_atual == "Reporte":
     caminho_logo = "mercado livre.jfif"
 
     if os.path.exists(caminho_logo):
@@ -185,7 +185,7 @@ if st.session_state.pagina_atual == "Cadastro":
             )
             tipo_reporte = st.selectbox(
                 "Tipo de Reporte *",
-                ["Hora a Hora", "OOT", "Outros"],
+                ["Comunicação de Acidentes", "Passagem de Turno", "OOT", "Outros"],
             )
         with col2:
             turno = st.selectbox(
