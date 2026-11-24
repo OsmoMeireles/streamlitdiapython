@@ -19,7 +19,7 @@ with st.sidebar:
         st.session_state.pagina_atual = "Reporte"
 
     with col_btn1:
-        if st.button("📝 Cadastro", use_container_width=True):
+        if st.button("📝 Reporte", use_container_width=True):
             st.session_state.pagina_atual = "Reporte"
     with col_btn2:
         if st.button("📊 OOT", use_container_width=True):
