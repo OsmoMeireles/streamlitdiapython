@@ -43,44 +43,102 @@ if st.session_state.pagina_atual == "Reporte":
     if "reportes" not in st.session_state:
         st.session_state.reportes = []
 
-    def gerar_imagem_relatorio(reportes):
-        """Gera uma imagem PNG no tamanho mínimo de folha A4 (1240x1754 px - 150 DPI)
-        com o logo do Mercado Livre no cabeçalho."""
-        largura = 1240
-        altura_minima_a4 = 1754
+    def _carregar_fontes_reporte():
+        try:
+            return (
+                ImageFont.truetype("arialbd.ttf", 34),
+                ImageFont.truetype("arial.ttf", 21),
+                ImageFont.truetype("arialbd.ttf", 24),
+                ImageFont.truetype("arial.ttf", 23),
+            )
+        except OSError:
+            padrao = ImageFont.load_default()
+            return (padrao, padrao, padrao, padrao)
+
+    def _quebrar_texto_por_largura(draw, texto, fonte, largura_max):
+        """Quebra o texto considerando parágrafos e largura real em pixels."""
+        linhas_finais = []
+        for paragrafo in texto.splitlines() or [""]:
+            palavras = paragrafo.split()
+            if not palavras:
+                linhas_finais.append("")
+                continue
+
+            linha_atual = palavras[0]
+            for palavra in palavras[1:]:
+                teste = f"{linha_atual} {palavra}"
+                bbox = draw.textbbox((0, 0), teste, font=fonte)
+                if (bbox[2] - bbox[0]) <= largura_max:
+                    linha_atual = teste
+                else:
+                    linhas_finais.append(linha_atual)
+                    linha_atual = palavra
+            linhas_finais.append(linha_atual)
+
+        return linhas_finais or ["Sem observações."]
+
+    def gerar_imagem_relatorio(reportes, formato="PNG"):
+        """Gera imagem em PNG ou JPG de alta nitidez, ajustando a altura ao conteúdo."""
+        largura = 1400
+        altura_minima = 1754 if formato.upper() == "PNG" else 600
         altura_cabecalho = 150
         margem = 45
+        larg_card = largura - 2 * margem
 
-        try:
-            fonte_titulo = ImageFont.truetype("arialbd.ttf", 34)
-            fonte_subtitulo = ImageFont.truetype("arial.ttf", 20)
-            fonte_negrito = ImageFont.truetype("arialbd.ttf", 24)
-            fonte_texto = ImageFont.truetype("arial.ttf", 22)
-        except OSError:
-            fonte_titulo = ImageFont.load_default()
-            fonte_subtitulo = ImageFont.load_default()
-            fonte_negrito = ImageFont.load_default()
-            fonte_texto = ImageFont.load_default()
+        fonte_titulo, fonte_subtitulo, fonte_negrito, fonte_texto = (
+            _carregar_fontes_reporte()
+        )
+
+        # Canvas temporário apenas para medir largura real de texto com precisão
+        img_med = Image.new("RGB", (largura, 200), color=(255, 255, 255))
+        draw_med = ImageDraw.Draw(img_med)
+
+        tam_foto_base = 260
+        larg_area_texto = larg_card - (20 + tam_foto_base + 35 + 25)
+        altura_linha = 32
 
         cartoes_preparados = []
         altura_conteudo = altura_cabecalho + margem
 
         for item in reportes:
-            linhas_texto = textwrap.wrap(item["Passagem de Turno"], width=66)
-            if not linhas_texto:
-                linhas_texto = ["Sem observações."]
+            linhas_texto = _quebrar_texto_por_largura(
+                draw_med, item["Passagem de Turno"], fonte_texto, larg_area_texto
+            )
 
-            altura_texto = 90 + (len(linhas_texto) * 30)
-            altura_card = max(270, altura_texto + 35)
+            altura_foto_real = tam_foto_base
+            foto_redimensionada = None
+            if item["Imagem"] is not None:
+                try:
+                    foto_orig = Image.open(io.BytesIO(item["Imagem"])).convert("RGB")
+                    # Mantém proporção encaixando na largura e evitando altura excessiva
+                    escala_w = tam_foto_base / max(1, foto_orig.width)
+                    novo_w = max(1, int(foto_orig.width * escala_w))
+                    novo_h = max(1, int(foto_orig.height * escala_w))
+                    if novo_h > 420:
+                        escala_h = 420 / novo_h
+                        novo_w = max(1, int(novo_w * escala_h))
+                        novo_h = max(1, int(novo_h * escala_h))
+                    foto_redimensionada = foto_orig.resize(
+                        (novo_w, novo_h), Image.Resampling.LANCZOS
+                    )
+                    altura_foto_real = max(200, novo_h)
+                except Exception:
+                    foto_redimensionada = None
 
-            cartoes_preparados.append((item, linhas_texto, altura_card))
+            altura_bloco_texto = 85 + len(linhas_texto) * altura_linha
+            altura_card = max(250, altura_foto_real + 40, altura_bloco_texto + 30)
+
+            cartoes_preparados.append(
+                (item, linhas_texto, foto_redimensionada, altura_foto_real, altura_card)
+            )
             altura_conteudo += altura_card + 25
 
-        altura_total = max(altura_minima_a4, altura_conteudo + margem)
+        altura_total = max(altura_minima, altura_conteudo + margem)
 
         img = Image.new("RGB", (largura, altura_total), color=(248, 249, 250))
         draw = ImageDraw.Draw(img)
 
+        # Cabeçalho
         draw.rectangle([(0, 0), (largura, 125)], fill=(255, 230, 0))
         draw.rectangle([(0, 120), (largura, 125)], fill=(30, 58, 138))
 
@@ -88,7 +146,7 @@ if st.session_state.pagina_atual == "Reporte":
         if os.path.exists(caminho_logo):
             try:
                 logo = Image.open(caminho_logo).convert("RGB")
-                logo.thumbnail((170, 95))
+                logo.thumbnail((180, 96), Image.Resampling.LANCZOS)
                 y_logo = (120 - logo.height) // 2
                 img.paste(logo, (margem, y_logo))
                 x_titulo = margem + logo.width + 30
@@ -96,7 +154,7 @@ if st.session_state.pagina_atual == "Reporte":
                 pass
 
         draw.text(
-            (x_titulo, 28),
+            (x_titulo, 26),
             "REPORTE DE MONITORAMENTO - SMG1",
             fill=(15, 23, 42),
             font=fonte_titulo,
@@ -110,9 +168,13 @@ if st.session_state.pagina_atual == "Reporte":
 
         y_atual = altura_cabecalho
 
-        for idx, (item, linhas_texto, altura_card) in enumerate(
-            cartoes_preparados, start=1
-        ):
+        for idx, (
+            item,
+            linhas_texto,
+            foto_redimensionada,
+            altura_foto_real,
+            altura_card,
+        ) in enumerate(cartoes_preparados, start=1):
             draw.rounded_rectangle(
                 [(margem, y_atual), (largura - margem, y_atual + altura_card)],
                 radius=12,
@@ -123,43 +185,43 @@ if st.session_state.pagina_atual == "Reporte":
 
             x_foto = margem + 20
             y_foto = y_atual + 20
-            tam_foto = 230
 
-            if item["Imagem"] is not None:
-                foto = Image.open(io.BytesIO(item["Imagem"])).convert("RGB")
-                foto.thumbnail((tam_foto, tam_foto))
-                offset_x = x_foto + (tam_foto - foto.width) // 2
-                offset_y = y_foto + (tam_foto - foto.height) // 2
-                img.paste(foto, (offset_x, offset_y))
+            if foto_redimensionada is not None:
+                offset_x = x_foto + (tam_foto_base - foto_redimensionada.width) // 2
+                offset_y = y_foto + (altura_foto_real - foto_redimensionada.height) // 2
+                img.paste(foto_redimensionada, (offset_x, offset_y))
             else:
                 draw.rectangle(
-                    [(x_foto, y_foto), (x_foto + tam_foto, y_foto + tam_foto)],
+                    [
+                        (x_foto, y_foto),
+                        (x_foto + tam_foto_base, y_foto + 220),
+                    ],
                     fill=(241, 245, 249),
                     outline=(203, 213, 225),
                     width=2,
                 )
                 draw.text(
-                    (x_foto + 68, y_foto + 102),
+                    (x_foto + 85, y_foto + 98),
                     "Sem foto",
                     fill=(100, 116, 139),
                     font=fonte_texto,
                 )
 
-            x_texto = x_foto + tam_foto + 35
+            x_texto = x_foto + tam_foto_base + 35
             draw.text(
-                (x_texto, y_atual + 24),
+                (x_texto, y_atual + 22),
                 f"#{idx} | Data: {item['Data']} - {item['Turno']} ({item['Tipo de Reporte']})",
                 fill=(30, 58, 138),
                 font=fonte_negrito,
             )
 
             draw.line(
-                [(x_texto, y_atual + 62), (largura - margem - 25, y_atual + 62)],
+                [(x_texto, y_atual + 60), (largura - margem - 25, y_atual + 60)],
                 fill=(226, 232, 240),
                 width=2,
             )
 
-            y_linha = y_atual + 78
+            y_linha = y_atual + 76
             for linha in linhas_texto:
                 draw.text(
                     (x_texto, y_linha),
@@ -167,12 +229,15 @@ if st.session_state.pagina_atual == "Reporte":
                     fill=(30, 41, 59),
                     font=fonte_texto,
                 )
-                y_linha += 30
+                y_linha += altura_linha
 
             y_atual += altura_card + 25
 
         buffer = io.BytesIO()
-        img.save(buffer, format="PNG", dpi=(150, 150))
+        if formato.upper() == "JPG" or formato.upper() == "JPEG":
+            img.save(buffer, format="JPEG", quality=98, subsampling=0)
+        else:
+            img.save(buffer, format="PNG", dpi=(150, 150))
         return buffer.getvalue()
 
     with st.form("form_reporte", clear_on_submit=True):
@@ -232,14 +297,29 @@ if st.session_state.pagina_atual == "Reporte":
     st.subheader(f"Reportes Registrados ({len(st.session_state.reportes)})")
 
     if st.session_state.reportes:
-        imagem_relatorio = gerar_imagem_relatorio(st.session_state.reportes)
-        st.download_button(
-            label="📥 Baixar Reporte em Imagem A4 (PNG)",
-            data=imagem_relatorio,
-            file_name=f"reporte_smg1_{date.today().strftime('%d_%m_%Y')}.png",
-            mime="image/png",
-            use_container_width=True,
-        )
+        col_dl1, col_dl2 = st.columns(2)
+        with col_dl1:
+            imagem_relatorio_jpg = gerar_imagem_relatorio(
+                st.session_state.reportes, formato="JPG"
+            )
+            st.download_button(
+                label="📥 Baixar Reporte em JPG (Alta Nitidez)",
+                data=imagem_relatorio_jpg,
+                file_name=f"reporte_smg1_{date.today().strftime('%d_%m_%Y')}.jpg",
+                mime="image/jpeg",
+                use_container_width=True,
+            )
+        with col_dl2:
+            imagem_relatorio_png = gerar_imagem_relatorio(
+                st.session_state.reportes, formato="PNG"
+            )
+            st.download_button(
+                label="📥 Baixar Reporte em PNG A4",
+                data=imagem_relatorio_png,
+                file_name=f"reporte_smg1_{date.today().strftime('%d_%m_%Y')}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
 
         dados_tabela = [
             {k: v for k, v in item.items() if k != "Imagem"}
@@ -293,10 +373,11 @@ elif st.session_state.pagina_atual == "OOT":
         draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
         draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
 
-        # Linha da meta 90% (escala 0 a 115)
-        y_meta = y_base - int((90.0 / 115.0) * alt_area)
+        y_meta = y_base - int((90.0 / 118.0) * alt_area)
         draw.line([(x_esq, y_meta), (x_dir, y_meta)], fill=(56, 189, 248), width=3)
-        draw.text((x_dir - 150, y_meta - 24), "Meta 90%", fill=(56, 189, 248), font=f_cel)
+        draw.text(
+            (x_dir - 150, y_meta - 24), "Meta 90%", fill=(56, 189, 248), font=f_cel
+        )
 
         n = len(df_ondas_plot)
         if n == 0:
@@ -314,19 +395,31 @@ elif st.session_state.pagina_atual == "OOT":
             cx = int(x_esq + (i + 0.5) * passo)
             x0 = cx - larg_barra // 2
             x1 = cx + larg_barra // 2
-            h_barra = int((min(val, 115.0) / 115.0) * alt_area)
+            h_barra = int((min(val, 118.0) / 118.0) * alt_area)
             y0 = y_base - h_barra
 
             cor_barra = (22, 163, 74) if val >= 90.0 else (220, 38, 38)
             draw.rectangle([(x0, y0), (x1, y_base)], fill=cor_barra)
-            draw.text((x0 - 4, max(45, y0 - 22)), f"{val:.1f}%", fill=(255, 255, 255), font=f_cel)
+            draw.text(
+                (x0 - 4, max(45, y0 - 22)),
+                f"{val:.1f}%",
+                fill=(255, 255, 255),
+                font=f_cel,
+            )
 
             cor_lbl = (255, 226, 0) if ciclo in ciclos_destaque else (226, 232, 240)
-            draw.text((x0 - 10, y_base + 12 + (i % 2) * 22), rotulo, fill=cor_lbl, font=f_cel)
+            draw.text(
+                (x0 - 10, y_base + 12 + (i % 2) * 22),
+                rotulo,
+                fill=cor_lbl,
+                font=f_cel,
+            )
 
         return img
 
-    def _desenhar_grafico_rotas_pil(df_ciclos_plot, medias_map, largura, altura, fontes):
+    def _desenhar_grafico_rotas_pil(
+        df_ciclos_plot, medias_map, largura, altura, fontes
+    ):
         """Desenha o gráfico de Rotas e Pacotes por Ciclo com PIL caso Kaleido não esteja disponível."""
         img = Image.new("RGB", (largura, altura), color=(0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -369,15 +462,24 @@ elif st.session_state.pagina_atual == "OOT":
             draw.rectangle([(x0, y0), (x1, y_base)], fill=(41, 132, 102))
 
             txt_topo = f"{pacotes:,}".replace(",", ".") + f" pct | {rotas} rotas"
-            draw.text((max(15, x0 - 20), max(45, y0 - 24)), txt_topo, fill=(255, 255, 255), font=f_cel)
+            draw.text(
+                (max(15, x0 - 20), max(45, y0 - 24)),
+                txt_topo,
+                fill=(255, 255, 255),
+                font=f_cel,
+            )
 
             if ciclo in medias_map and rotas > 0:
                 media_c = float(medias_map[ciclo])
                 cor_meta = (22, 163, 74) if media_c >= 90.0 else (220, 38, 38)
                 y_mid = (y0 + y_base) // 2 - 10
-                draw.text((x0 + 12, y_mid), f"{media_c:.1f}%", fill=cor_meta, font=f_bold)
+                draw.text(
+                    (x0 + 12, y_mid), f"{media_c:.1f}%", fill=cor_meta, font=f_bold
+                )
 
-            draw.text((x0 + 8, y_base + 14), ciclo, fill=(226, 232, 240), font=f_bold)
+            draw.text(
+                (x0 + 8, y_base + 14), ciclo, fill=(226, 232, 240), font=f_bold
+            )
 
         return img
 
@@ -391,18 +493,18 @@ elif st.session_state.pagina_atual == "OOT":
         fig_oot,
         fig_rotas,
     ):
-        """Gera uma imagem JPG reunindo resumo, tabela por ciclo e os dois gráficos."""
+        """Gera uma imagem JPG nítida com altura ajustada ao tamanho da tabela e dos gráficos."""
         largura = 2000
         margem = 50
         larg_util = largura - 2 * margem
         altura_cabecalho = 135
         altura_resumo = 130
 
-        linhas_tab = len(df_ciclos_resumo) + 1
-        altura_linha_tab = 44
-        altura_tabela = 50 + linhas_tab * altura_linha_tab
+        qtd_ciclos = max(1, len(df_ciclos_resumo))
+        altura_linha_tab = 46
+        altura_tabela = 58 + (qtd_ciclos + 1) * altura_linha_tab
 
-        altura_graf_oot = 620 if not df_ondas_resumo.empty else 0
+        altura_graf_oot = 640 if not df_ondas_resumo.empty else 0
         altura_graf_rotas = 580
 
         altura_total = (
@@ -412,8 +514,8 @@ elif st.session_state.pagina_atual == "OOT":
             + altura_resumo
             + 25
             + altura_tabela
+            + (30 + altura_graf_oot if not df_ondas_resumo.empty else 0)
             + 30
-            + (altura_graf_oot + 30 if not df_ondas_resumo.empty else 0)
             + altura_graf_rotas
             + margem
         )
@@ -445,8 +547,7 @@ elif st.session_state.pagina_atual == "OOT":
             fonte_tab_bold,
         )
 
-        canvas = Image.new("RGB", (largura, altura_total),
-                           color=(248, 249, 250))
+        canvas = Image.new("RGB", (largura, altura_total), color=(248, 249, 250))
         draw = ImageDraw.Draw(canvas)
 
         # 1. Cabeçalho
@@ -456,8 +557,7 @@ elif st.session_state.pagina_atual == "OOT":
             fill=(255, 230, 0),
         )
         draw.rectangle(
-            [(margem, y + altura_cabecalho - 8),
-             (largura - margem, y + altura_cabecalho)],
+            [(margem, y + altura_cabecalho - 8), (largura - margem, y + altura_cabecalho)],
             fill=(30, 58, 138),
         )
         draw.text(
@@ -492,10 +592,8 @@ elif st.session_state.pagina_atual == "OOT":
                 outline=(203, 213, 225),
                 width=2,
             )
-            draw.text((x0 + 24, y + 20), tit,
-                      fill=(100, 116, 139), font=fonte_kpi_tit)
-            draw.text((x0 + 24, y + 58), val,
-                      fill=(15, 23, 42), font=fonte_kpi_val)
+            draw.text((x0 + 24, y + 20), tit, fill=(100, 116, 139), font=fonte_kpi_tit)
+            draw.text((x0 + 24, y + 58), val, fill=(15, 23, 42), font=fonte_kpi_val)
 
         # 3. Tabela resumo por ciclo
         y += altura_resumo + 25
@@ -528,21 +626,21 @@ elif st.session_state.pagina_atual == "OOT":
         )
         x_cel = margem + 28
         for h_txt, w_col in zip(headers, col_widths):
-            draw.text((x_cel, y_tab + 11), h_txt,
-                      fill=(255, 255, 255), font=fonte_tab_hdr)
+            draw.text((x_cel, y_tab + 12), h_txt, fill=(255, 255, 255), font=fonte_tab_hdr)
             x_cel += w_col
 
-        for idx_r, row in df_ciclos_resumo.iterrows():
+        for idx_r, (_, row) in enumerate(df_ciclos_resumo.iterrows()):
             y_row = y_tab + (idx_r + 1) * altura_linha_tab
             bg_row = (248, 250, 252) if idx_r % 2 == 1 else (255, 255, 255)
             draw.rectangle(
-                [(margem + 16, y_row), (largura -
-                                        margem - 16, y_row + altura_linha_tab)],
+                [(margem + 16, y_row), (largura - margem - 16, y_row + altura_linha_tab)],
                 fill=bg_row,
             )
             draw.line(
-                [(margem + 16, y_row + altura_linha_tab),
-                 (largura - margem - 16, y_row + altura_linha_tab)],
+                [
+                    (margem + 16, y_row + altura_linha_tab),
+                    (largura - margem - 16, y_row + altura_linha_tab),
+                ],
                 fill=(226, 232, 240),
                 width=1,
             )
@@ -566,12 +664,12 @@ elif st.session_state.pagina_atual == "OOT":
                 (oot_fmt, fonte_tab_bold, cor_oot),
             ]
             for idx_col, (val_txt, fnt, clr) in enumerate(valores_linha):
-                draw.text((x_cel, y_row + 11), val_txt, fill=clr, font=fnt)
+                draw.text((x_cel, y_row + 12), val_txt, fill=clr, font=fnt)
                 x_cel += col_widths[idx_col]
 
         # 4. Gráfico 1 (OOT)
         y += altura_tabela + 30
-        if not df_ondas_resumo.empty:
+        if not df_ondas_resumo.empty and fig_oot is not None:
             try:
                 bytes_oot = fig_oot.to_image(
                     format="png",
@@ -747,8 +845,7 @@ elif st.session_state.pagina_atual == "OOT":
 
     total_pacotes = int(df_ciclos["Pacotes"].sum())
     total_rotas = int(df_ciclos["Rotas"].sum())
-    media_oot = float(df_ondas["OOT (%)"].mean()
-                      ) if not df_ondas.empty else 0.0
+    media_oot = float(df_ondas["OOT (%)"].mean()) if not df_ondas.empty else 0.0
 
     col_m1, col_m2, col_m3 = st.columns(3)
     col_m1.metric(
@@ -815,8 +912,7 @@ elif st.session_state.pagina_atual == "OOT":
             paper_bgcolor="black",
             plot_bgcolor="black",
             font=dict(color="white", size=14),
-            yaxis=dict(title="Performance (%)", range=[
-                       0, 118], gridcolor="#1e293b"),
+            yaxis=dict(title="Performance (%)", range=[0, 118], gridcolor="#1e293b"),
             xaxis=dict(
                 title="Ciclo / Onda",
                 tickmode="array",
