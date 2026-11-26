@@ -185,7 +185,12 @@ if st.session_state.pagina_atual == "Reporte":
             )
             tipo_reporte = st.selectbox(
                 "Tipo de Reporte *",
-                ["Comunicação de Acidentes", "Passagem de Turno", "OOT", "Outros"],
+                [
+                    "Comunicação de Acidentes",
+                    "Passagem de Turno",
+                    "OOT",
+                    "Outros",
+                ],
             )
         with col2:
             turno = st.selectbox(
@@ -267,15 +272,126 @@ elif st.session_state.pagina_atual == "OOT":
     st.title("📊 Report de Expedição Diário — OOT")
     st.caption("Meta OOT = 90% | Resultados ≥ 90% em Verde e < 90% em Vermelho")
 
+    def _desenhar_grafico_oot_pil(df_ondas_plot, largura, altura, fontes):
+        """Desenha o gráfico de OOT por Ciclo/Onda com PIL caso Kaleido não esteja disponível."""
+        img = Image.new("RGB", (largura, altura), color=(0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        _, _, _, _, f_hdr, f_cel, f_bold = fontes
+
+        draw.text(
+            (30, 18),
+            "1. PERFORMANCE OOT (%) POR CICLO/ONDA VS. META (90%)",
+            fill=(255, 255, 255),
+            font=f_bold,
+        )
+
+        x_esq, x_dir = 90, largura - 40
+        y_topo, y_base = 80, altura - 110
+        alt_area = y_base - y_topo
+        larg_area = x_dir - x_esq
+
+        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
+
+        # Linha da meta 90% (escala 0 a 115)
+        y_meta = y_base - int((90.0 / 115.0) * alt_area)
+        draw.line([(x_esq, y_meta), (x_dir, y_meta)], fill=(56, 189, 248), width=3)
+        draw.text((x_dir - 150, y_meta - 24), "Meta 90%", fill=(56, 189, 248), font=f_cel)
+
+        n = len(df_ondas_plot)
+        if n == 0:
+            return img
+
+        passo = larg_area / n
+        larg_barra = max(18, int(passo * 0.58))
+        ciclos_destaque = {"CICLO CPM", "CICLO PM", "CICLO SDE"}
+
+        for i, (_, row) in enumerate(df_ondas_plot.iterrows()):
+            val = float(row["OOT (%)"])
+            ciclo = str(row["Ciclo"])
+            rotulo = str(row["Ciclo_Onda"])
+
+            cx = int(x_esq + (i + 0.5) * passo)
+            x0 = cx - larg_barra // 2
+            x1 = cx + larg_barra // 2
+            h_barra = int((min(val, 115.0) / 115.0) * alt_area)
+            y0 = y_base - h_barra
+
+            cor_barra = (22, 163, 74) if val >= 90.0 else (220, 38, 38)
+            draw.rectangle([(x0, y0), (x1, y_base)], fill=cor_barra)
+            draw.text((x0 - 4, max(45, y0 - 22)), f"{val:.1f}%", fill=(255, 255, 255), font=f_cel)
+
+            cor_lbl = (255, 226, 0) if ciclo in ciclos_destaque else (226, 232, 240)
+            draw.text((x0 - 10, y_base + 12 + (i % 2) * 22), rotulo, fill=cor_lbl, font=f_cel)
+
+        return img
+
+    def _desenhar_grafico_rotas_pil(df_ciclos_plot, medias_map, largura, altura, fontes):
+        """Desenha o gráfico de Rotas e Pacotes por Ciclo com PIL caso Kaleido não esteja disponível."""
+        img = Image.new("RGB", (largura, altura), color=(0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        _, _, _, _, f_hdr, f_cel, f_bold = fontes
+
+        draw.text(
+            (30, 18),
+            "2. QUANTIDADE DE ROTAS E PACOTES POR CICLO",
+            fill=(255, 255, 255),
+            font=f_bold,
+        )
+
+        x_esq, x_dir = 90, largura - 40
+        y_topo, y_base = 85, altura - 70
+        alt_area = y_base - y_topo
+        larg_area = x_dir - x_esq
+
+        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
+
+        n = len(df_ciclos_plot)
+        if n == 0:
+            return img
+
+        max_rotas = max(10.0, float(df_ciclos_plot["Rotas"].max()) * 1.28)
+        passo = larg_area / n
+        larg_barra = max(40, int(passo * 0.55))
+
+        for i, (_, row) in enumerate(df_ciclos_plot.iterrows()):
+            ciclo = str(row["Ciclo"])
+            pacotes = int(row["Pacotes"])
+            rotas = int(row["Rotas"])
+
+            cx = int(x_esq + (i + 0.5) * passo)
+            x0 = cx - larg_barra // 2
+            x1 = cx + larg_barra // 2
+            h_barra = int((rotas / max_rotas) * alt_area)
+            y0 = y_base - h_barra
+
+            draw.rectangle([(x0, y0), (x1, y_base)], fill=(41, 132, 102))
+
+            txt_topo = f"{pacotes:,}".replace(",", ".") + f" pct | {rotas} rotas"
+            draw.text((max(15, x0 - 20), max(45, y0 - 24)), txt_topo, fill=(255, 255, 255), font=f_cel)
+
+            if ciclo in medias_map and rotas > 0:
+                media_c = float(medias_map[ciclo])
+                cor_meta = (22, 163, 74) if media_c >= 90.0 else (220, 38, 38)
+                y_mid = (y0 + y_base) // 2 - 10
+                draw.text((x0 + 12, y_mid), f"{media_c:.1f}%", fill=cor_meta, font=f_bold)
+
+            draw.text((x0 + 8, y_base + 14), ciclo, fill=(226, 232, 240), font=f_bold)
+
+        return img
+
     def gerar_reporte_oot_jpg(
         total_pacotes,
         total_rotas,
         media_oot,
         df_ciclos_resumo,
+        df_ondas_resumo,
+        medias_map,
         fig_oot,
         fig_rotas,
     ):
-        """Gera uma imagem JPG de alta resolução reunindo resumo, tabela por ciclo e os dois gráficos."""
+        """Gera uma imagem JPG reunindo resumo, tabela por ciclo e os dois gráficos."""
         largura = 2000
         margem = 50
         larg_util = largura - 2 * margem
@@ -286,7 +402,7 @@ elif st.session_state.pagina_atual == "OOT":
         altura_linha_tab = 44
         altura_tabela = 50 + linhas_tab * altura_linha_tab
 
-        altura_graf_oot = 620 if fig_oot is not None else 0
+        altura_graf_oot = 620 if not df_ondas_resumo.empty else 0
         altura_graf_rotas = 580
 
         altura_total = (
@@ -297,7 +413,7 @@ elif st.session_state.pagina_atual == "OOT":
             + 25
             + altura_tabela
             + 30
-            + (altura_graf_oot + 30 if fig_oot is not None else 0)
+            + (altura_graf_oot + 30 if not df_ondas_resumo.empty else 0)
             + altura_graf_rotas
             + margem
         )
@@ -318,6 +434,16 @@ elif st.session_state.pagina_atual == "OOT":
             fonte_tab_hdr = ImageFont.load_default()
             fonte_tab_cel = ImageFont.load_default()
             fonte_tab_bold = ImageFont.load_default()
+
+        fontes_pil = (
+            fonte_titulo,
+            fonte_sub,
+            fonte_kpi_tit,
+            fonte_kpi_val,
+            fonte_tab_hdr,
+            fonte_tab_cel,
+            fonte_tab_bold,
+        )
 
         canvas = Image.new("RGB", (largura, altura_total),
                            color=(248, 249, 250))
@@ -396,7 +522,6 @@ elif st.session_state.pagina_atual == "OOT":
         ]
         headers = ["Ciclo", "Pacotes", "Rotas", "Média OOT (Meta 90%)"]
 
-        # Cabeçalho da tabela
         draw.rectangle(
             [(margem + 16, y_tab), (largura - margem - 16, y_tab + altura_linha_tab)],
             fill=(15, 23, 42),
@@ -407,7 +532,6 @@ elif st.session_state.pagina_atual == "OOT":
                       fill=(255, 255, 255), font=fonte_tab_hdr)
             x_cel += w_col
 
-        # Linhas da tabela
         for idx_r, row in df_ciclos_resumo.iterrows():
             y_row = y_tab + (idx_r + 1) * altura_linha_tab
             bg_row = (248, 250, 252) if idx_r % 2 == 1 else (255, 255, 255)
@@ -441,35 +565,47 @@ elif st.session_state.pagina_atual == "OOT":
                 (rot_fmt, fonte_tab_cel, (30, 41, 59)),
                 (oot_fmt, fonte_tab_bold, cor_oot),
             ]
-            for val_txt, fnt, clr in valores_linha:
+            for idx_col, (val_txt, fnt, clr) in enumerate(valores_linha):
                 draw.text((x_cel, y_row + 11), val_txt, fill=clr, font=fnt)
-                x_cel += col_widths[valores_linha.index((val_txt, fnt, clr))]
+                x_cel += col_widths[idx_col]
 
         # 4. Gráfico 1 (OOT)
         y += altura_tabela + 30
-        if fig_oot is not None:
-            bytes_oot = fig_oot.to_image(
-                format="png",
-                width=larg_util,
-                height=altura_graf_oot,
-                scale=2,
-            )
-            img_oot = Image.open(io.BytesIO(bytes_oot)).convert("RGB")
-            img_oot = img_oot.resize(
-                (larg_util, altura_graf_oot), Image.Resampling.LANCZOS)
+        if not df_ondas_resumo.empty:
+            try:
+                bytes_oot = fig_oot.to_image(
+                    format="png",
+                    width=larg_util,
+                    height=altura_graf_oot,
+                    scale=2,
+                )
+                img_oot = Image.open(io.BytesIO(bytes_oot)).convert("RGB")
+                img_oot = img_oot.resize(
+                    (larg_util, altura_graf_oot), Image.Resampling.LANCZOS
+                )
+            except Exception:
+                img_oot = _desenhar_grafico_oot_pil(
+                    df_ondas_resumo, larg_util, altura_graf_oot, fontes_pil
+                )
             canvas.paste(img_oot, (margem, y))
             y += altura_graf_oot + 30
 
         # 5. Gráfico 2 (Ciclos / Rotas / Pacotes)
-        bytes_rotas = fig_rotas.to_image(
-            format="png",
-            width=larg_util,
-            height=altura_graf_rotas,
-            scale=2,
-        )
-        img_rotas = Image.open(io.BytesIO(bytes_rotas)).convert("RGB")
-        img_rotas = img_rotas.resize(
-            (larg_util, altura_graf_rotas), Image.Resampling.LANCZOS)
+        try:
+            bytes_rotas = fig_rotas.to_image(
+                format="png",
+                width=larg_util,
+                height=altura_graf_rotas,
+                scale=2,
+            )
+            img_rotas = Image.open(io.BytesIO(bytes_rotas)).convert("RGB")
+            img_rotas = img_rotas.resize(
+                (larg_util, altura_graf_rotas), Image.Resampling.LANCZOS
+            )
+        except Exception:
+            img_rotas = _desenhar_grafico_rotas_pil(
+                df_ciclos_resumo, medias_map, larg_util, altura_graf_rotas, fontes_pil
+            )
         canvas.paste(img_rotas, (margem, y))
 
         buffer = io.BytesIO()
@@ -704,6 +840,7 @@ elif st.session_state.pagina_atual == "OOT":
 
         st.plotly_chart(fig_oot, use_container_width=True)
     else:
+        df_ondas["Ciclo_Onda"] = []
         st.info("Adicione pelo menos uma onda para exibir o gráfico de OOT.")
 
     st.divider()
@@ -789,23 +926,20 @@ elif st.session_state.pagina_atual == "OOT":
     st.divider()
 
     # --- Botão único para baixar tudo em JPG ---
-    try:
-        jpg_completo = gerar_reporte_oot_jpg(
-            total_pacotes=total_pacotes,
-            total_rotas=total_rotas,
-            media_oot=media_oot,
-            df_ciclos_resumo=df_ciclos,
-            fig_oot=fig_oot,
-            fig_rotas=fig_rotas,
-        )
-        st.download_button(
-            label="📥 Baixar Reporte Completo OOT (JPG)",
-            data=jpg_completo,
-            file_name=f"reporte_completo_oot_{date.today().strftime('%d_%m_%Y')}.jpg",
-            mime="image/jpeg",
-            use_container_width=True,
-        )
-    except Exception:
-        st.caption(
-            "Para exportar o JPG completo, instale o pacote `kaleido` (`pip install kaleido`)."
-        )
+    jpg_completo = gerar_reporte_oot_jpg(
+        total_pacotes=total_pacotes,
+        total_rotas=total_rotas,
+        media_oot=media_oot,
+        df_ciclos_resumo=df_ciclos,
+        df_ondas_resumo=df_ondas,
+        medias_map=medias_por_ciclo,
+        fig_oot=fig_oot,
+        fig_rotas=fig_rotas,
+    )
+    st.download_button(
+        label="📥 Baixar Reporte Completo OOT (JPG)",
+        data=jpg_completo,
+        file_name=f"reporte_completo_oot_{date.today().strftime('%d_%m_%Y')}.jpg",
+        mime="image/jpeg",
+        use_container_width=True,
+    )
