@@ -1,7 +1,6 @@
 from datetime import date
 import io
 import os
-import textwrap
 
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
@@ -44,16 +43,33 @@ if st.session_state.pagina_atual == "Reporte":
         st.session_state.reportes = []
 
     def _carregar_fontes_reporte():
-        try:
+        candidatos_bold = [
+            "arialbd.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        ]
+        candidatos_regular = [
+            "arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+        ]
+
+        fonte_b = next((p for p in candidatos_bold if os.path.exists(p)), None)
+        fonte_r = next(
+            (p for p in candidatos_regular if os.path.exists(p)), None
+        )
+
+        if fonte_b and fonte_r:
             return (
-                ImageFont.truetype("arialbd.ttf", 34),
-                ImageFont.truetype("arial.ttf", 21),
-                ImageFont.truetype("arialbd.ttf", 24),
-                ImageFont.truetype("arial.ttf", 23),
+                ImageFont.truetype(fonte_b, 34),
+                ImageFont.truetype(fonte_r, 21),
+                ImageFont.truetype(fonte_b, 24),
+                ImageFont.truetype(fonte_r, 23),
             )
-        except OSError:
-            padrao = ImageFont.load_default()
-            return (padrao, padrao, padrao, padrao)
+        padrao = ImageFont.load_default()
+        return (padrao, padrao, padrao, padrao)
 
     def _quebrar_texto_por_largura(draw, texto, fonte, largura_max):
         """Quebra o texto considerando parágrafos e largura real em pixels."""
@@ -89,7 +105,6 @@ if st.session_state.pagina_atual == "Reporte":
             _carregar_fontes_reporte()
         )
 
-        # Canvas temporário apenas para medir largura real de texto com precisão
         img_med = Image.new("RGB", (largura, 200), color=(255, 255, 255))
         draw_med = ImageDraw.Draw(img_med)
 
@@ -102,15 +117,19 @@ if st.session_state.pagina_atual == "Reporte":
 
         for item in reportes:
             linhas_texto = _quebrar_texto_por_largura(
-                draw_med, item["Passagem de Turno"], fonte_texto, larg_area_texto
+                draw_med,
+                item["Passagem de Turno"],
+                fonte_texto,
+                larg_area_texto,
             )
 
             altura_foto_real = tam_foto_base
             foto_redimensionada = None
             if item["Imagem"] is not None:
                 try:
-                    foto_orig = Image.open(io.BytesIO(item["Imagem"])).convert("RGB")
-                    # Mantém proporção encaixando na largura e evitando altura excessiva
+                    foto_orig = Image.open(
+                        io.BytesIO(item["Imagem"])
+                    ).convert("RGB")
                     escala_w = tam_foto_base / max(1, foto_orig.width)
                     novo_w = max(1, int(foto_orig.width * escala_w))
                     novo_h = max(1, int(foto_orig.height * escala_w))
@@ -126,11 +145,17 @@ if st.session_state.pagina_atual == "Reporte":
                     foto_redimensionada = None
 
             altura_bloco_texto = 85 + len(linhas_texto) * altura_linha
-            altura_card = max(250, altura_foto_real + 40, altura_bloco_texto + 30)
-
-            cartoes_preparados.append(
-                (item, linhas_texto, foto_redimensionada, altura_foto_real, altura_card)
+            altura_card = max(
+                250, altura_foto_real + 40, altura_bloco_texto + 30
             )
+
+            cartoes_preparados.append((
+                item,
+                linhas_texto,
+                foto_redimensionada,
+                altura_foto_real,
+                altura_card,
+            ))
             altura_conteudo += altura_card + 25
 
         altura_total = max(altura_minima, altura_conteudo + margem)
@@ -138,7 +163,6 @@ if st.session_state.pagina_atual == "Reporte":
         img = Image.new("RGB", (largura, altura_total), color=(248, 249, 250))
         draw = ImageDraw.Draw(img)
 
-        # Cabeçalho
         draw.rectangle([(0, 0), (largura, 125)], fill=(255, 230, 0))
         draw.rectangle([(0, 120), (largura, 125)], fill=(30, 58, 138))
 
@@ -187,8 +211,12 @@ if st.session_state.pagina_atual == "Reporte":
             y_foto = y_atual + 20
 
             if foto_redimensionada is not None:
-                offset_x = x_foto + (tam_foto_base - foto_redimensionada.width) // 2
-                offset_y = y_foto + (altura_foto_real - foto_redimensionada.height) // 2
+                offset_x = (
+                    x_foto + (tam_foto_base - foto_redimensionada.width) // 2
+                )
+                offset_y = (
+                    y_foto + (altura_foto_real - foto_redimensionada.height) // 2
+                )
                 img.paste(foto_redimensionada, (offset_x, offset_y))
             else:
                 draw.rectangle(
@@ -352,39 +380,167 @@ elif st.session_state.pagina_atual == "OOT":
     st.title("📊 Report de Expedição Diário — OOT")
     st.caption("Meta OOT = 90% | Resultados ≥ 90% em Verde e < 90% em Vermelho")
 
+    def _carregar_fontes_oot():
+        """Carrega fontes TrueType ampliadas para facilitar leitura em telas grandes."""
+        candidatos_bold = [
+            "arialbd.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        ]
+        candidatos_regular = [
+            "arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+        ]
+
+        caminho_b = next(
+            (p for p in candidatos_bold if os.path.exists(p)), None
+        )
+        caminho_r = next(
+            (p for p in candidatos_regular if os.path.exists(p)), None
+        )
+
+        if caminho_b and caminho_r:
+            return {
+                "titulo": ImageFont.truetype(caminho_b, 42),
+                "sub": ImageFont.truetype(caminho_r, 25),
+                "kpi_tit": ImageFont.truetype(caminho_b, 22),
+                "kpi_val": ImageFont.truetype(caminho_b, 38),
+                "graf_tit": ImageFont.truetype(caminho_b, 30),
+                "tab_hdr": ImageFont.truetype(caminho_b, 23),
+                "tab_cel": ImageFont.truetype(caminho_r, 23),
+                "tab_bold": ImageFont.truetype(caminho_b, 23),
+                "bar_lbl": ImageFont.truetype(caminho_b, 24),
+                "axis_lbl": ImageFont.truetype(caminho_b, 21),
+                "y_lbl": ImageFont.truetype(caminho_r, 20),
+            }
+
+        padrao = ImageFont.load_default()
+        return {
+            "titulo": padrao,
+            "sub": padrao,
+            "kpi_tit": padrao,
+            "kpi_val": padrao,
+            "graf_tit": padrao,
+            "tab_hdr": padrao,
+            "tab_cel": padrao,
+            "tab_bold": padrao,
+            "bar_lbl": padrao,
+            "axis_lbl": padrao,
+            "y_lbl": padrao,
+        }
+
+    def _texto_centralizado(
+        draw, cx, y, texto, fonte, fill, bg_color=None, pad_x=7, pad_y=4
+    ):
+        """Desenha texto centralizado em cx com largura real medida via textbbox."""
+        bbox = draw.textbbox((0, 0), texto, font=fonte)
+        larg_txt = bbox[2] - bbox[0]
+        alt_txt = bbox[3] - bbox[1]
+        x = int(cx - larg_txt / 2)
+
+        if bg_color is not None:
+            draw.rounded_rectangle(
+                [
+                    (x - pad_x, y - pad_y),
+                    (x + larg_txt + pad_x, y + alt_txt + pad_y),
+                ],
+                radius=6,
+                fill=bg_color,
+            )
+
+        draw.text((x, y), texto, fill=fill, font=fonte)
+        return larg_txt, alt_txt
+
     def _desenhar_grafico_oot_pil(df_ondas_plot, largura, altura, fontes):
-        """Desenha o gráfico de OOT por Ciclo/Onda com PIL caso Kaleido não esteja disponível."""
+        """Desenha gráfico 1 (OOT por Ciclo/Onda vs. Meta 90%) com fontes ampliadas."""
         img = Image.new("RGB", (largura, altura), color=(0, 0, 0))
         draw = ImageDraw.Draw(img)
-        _, _, _, _, f_hdr, f_cel, f_bold = fontes
 
         draw.text(
-            (30, 18),
+            (36, 22),
             "1. PERFORMANCE OOT (%) POR CICLO/ONDA VS. META (90%)",
             fill=(255, 255, 255),
-            font=f_bold,
+            font=fontes["graf_tit"],
         )
 
-        x_esq, x_dir = 90, largura - 40
-        y_topo, y_base = 80, altura - 110
+        # Legenda superior direita com fonte ampliada
+        y_leg = 28
+        draw.rectangle(
+            [(largura - 440, y_leg + 4), (largura - 412, y_leg + 24)],
+            fill=(22, 163, 74),
+        )
+        draw.text(
+            (largura - 402, y_leg),
+            "≥ 90%",
+            fill=(255, 255, 255),
+            font=fontes["axis_lbl"],
+        )
+        draw.rectangle(
+            [(largura - 315, y_leg + 4), (largura - 287, y_leg + 24)],
+            fill=(220, 38, 38),
+        )
+        draw.text(
+            (largura - 277, y_leg),
+            "< 90%",
+            fill=(255, 255, 255),
+            font=fontes["axis_lbl"],
+        )
+        draw.line(
+            [(largura - 185, y_leg + 14), (largura - 150, y_leg + 14)],
+            fill=(56, 189, 248),
+            width=4,
+        )
+        draw.text(
+            (largura - 140, y_leg),
+            "Meta 90%",
+            fill=(56, 189, 248),
+            font=fontes["axis_lbl"],
+        )
+
+        x_esq, x_dir = 110, largura - 45
+        y_topo, y_base = 102, altura - 130
         alt_area = y_base - y_topo
         larg_area = x_dir - x_esq
+        teto_y = 122.0
 
-        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
-        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
+        for tick_val in [0, 25, 50, 75, 100]:
+            ty = y_base - int((tick_val / teto_y) * alt_area)
+            draw.line(
+                [(x_esq, ty), (x_dir, ty)], fill=(30, 41, 59), width=1
+            )
+            draw.text(
+                (28, ty - 12),
+                f"{tick_val}%",
+                fill=(148, 163, 184),
+                font=fontes["y_lbl"],
+            )
 
-        y_meta = y_base - int((90.0 / 118.0) * alt_area)
-        draw.line([(x_esq, y_meta), (x_dir, y_meta)], fill=(56, 189, 248), width=3)
-        draw.text(
-            (x_dir - 150, y_meta - 24), "Meta 90%", fill=(56, 189, 248), font=f_cel
+        draw.line(
+            [(x_esq, y_topo), (x_esq, y_base)], fill=(100, 116, 139), width=2
         )
+        draw.line(
+            [(x_esq, y_base), (x_dir, y_base)], fill=(100, 116, 139), width=2
+        )
+
+        y_meta = y_base - int((90.0 / teto_y) * alt_area)
+        for sx in range(x_esq, x_dir - 12, 24):
+            draw.line(
+                [(sx, y_meta), (sx + 12, y_meta)],
+                fill=(56, 189, 248),
+                width=4,
+            )
 
         n = len(df_ondas_plot)
         if n == 0:
             return img
 
         passo = larg_area / n
-        larg_barra = max(18, int(passo * 0.58))
+        larg_barra = max(28, min(96, int(passo * 0.56)))
         ciclos_destaque = {"CICLO CPM", "CICLO PM", "CICLO SDE"}
 
         for i, (_, row) in enumerate(df_ondas_plot.iterrows()):
@@ -395,24 +551,32 @@ elif st.session_state.pagina_atual == "OOT":
             cx = int(x_esq + (i + 0.5) * passo)
             x0 = cx - larg_barra // 2
             x1 = cx + larg_barra // 2
-            h_barra = int((min(val, 118.0) / 118.0) * alt_area)
+            h_barra = max(2, int((min(val, teto_y) / teto_y) * alt_area))
             y0 = y_base - h_barra
 
             cor_barra = (22, 163, 74) if val >= 90.0 else (220, 38, 38)
             draw.rectangle([(x0, y0), (x1, y_base)], fill=cor_barra)
-            draw.text(
-                (x0 - 4, max(45, y0 - 22)),
+
+            _texto_centralizado(
+                draw,
+                cx,
+                max(66, y0 - 34),
                 f"{val:.1f}%",
-                fill=(255, 255, 255),
-                font=f_cel,
+                fontes["bar_lbl"],
+                (255, 255, 255),
             )
 
-            cor_lbl = (255, 226, 0) if ciclo in ciclos_destaque else (226, 232, 240)
-            draw.text(
-                (x0 - 10, y_base + 12 + (i % 2) * 22),
+            cor_lbl = (
+                (255, 226, 0) if ciclo in ciclos_destaque else (226, 232, 240)
+            )
+            y_lbl_x = y_base + 14 if (n <= 10 or i % 2 == 0) else y_base + 48
+            _texto_centralizado(
+                draw,
+                cx,
+                y_lbl_x,
                 rotulo,
-                fill=cor_lbl,
-                font=f_cel,
+                fontes["axis_lbl"],
+                cor_lbl,
             )
 
         return img
@@ -420,33 +584,51 @@ elif st.session_state.pagina_atual == "OOT":
     def _desenhar_grafico_rotas_pil(
         df_ciclos_plot, medias_map, largura, altura, fontes
     ):
-        """Desenha o gráfico de Rotas e Pacotes por Ciclo com PIL caso Kaleido não esteja disponível."""
+        """Desenha gráfico 2 (Rotas e Pacotes por Ciclo) com fontes ampliadas."""
         img = Image.new("RGB", (largura, altura), color=(0, 0, 0))
         draw = ImageDraw.Draw(img)
-        _, _, _, _, f_hdr, f_cel, f_bold = fontes
 
         draw.text(
-            (30, 18),
+            (36, 22),
             "2. QUANTIDADE DE ROTAS E PACOTES POR CICLO",
             fill=(255, 255, 255),
-            font=f_bold,
+            font=fontes["graf_tit"],
         )
 
-        x_esq, x_dir = 90, largura - 40
-        y_topo, y_base = 85, altura - 70
+        x_esq, x_dir = 110, largura - 45
+        y_topo, y_base = 102, altura - 80
         alt_area = y_base - y_topo
         larg_area = x_dir - x_esq
 
-        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
-        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
+        max_rotas = max(10.0, float(df_ciclos_plot["Rotas"].max()) * 1.32)
+
+        for idx_g in range(5):
+            frac = idx_g / 4.0
+            ty = y_base - int(frac * alt_area)
+            val_tick = int(round(frac * max_rotas))
+            draw.line(
+                [(x_esq, ty), (x_dir, ty)], fill=(30, 41, 59), width=1
+            )
+            draw.text(
+                (28, ty - 12),
+                f"{val_tick}",
+                fill=(148, 163, 184),
+                font=fontes["y_lbl"],
+            )
+
+        draw.line(
+            [(x_esq, y_topo), (x_esq, y_base)], fill=(100, 116, 139), width=2
+        )
+        draw.line(
+            [(x_esq, y_base), (x_dir, y_base)], fill=(100, 116, 139), width=2
+        )
 
         n = len(df_ciclos_plot)
         if n == 0:
             return img
 
-        max_rotas = max(10.0, float(df_ciclos_plot["Rotas"].max()) * 1.28)
         passo = larg_area / n
-        larg_barra = max(40, int(passo * 0.55))
+        larg_barra = max(68, min(220, int(passo * 0.56)))
 
         for i, (_, row) in enumerate(df_ciclos_plot.iterrows()):
             ciclo = str(row["Ciclo"])
@@ -456,29 +638,48 @@ elif st.session_state.pagina_atual == "OOT":
             cx = int(x_esq + (i + 0.5) * passo)
             x0 = cx - larg_barra // 2
             x1 = cx + larg_barra // 2
-            h_barra = int((rotas / max_rotas) * alt_area)
+            h_barra = max(2, int((rotas / max_rotas) * alt_area))
             y0 = y_base - h_barra
 
             draw.rectangle([(x0, y0), (x1, y_base)], fill=(41, 132, 102))
 
-            txt_topo = f"{pacotes:,}".replace(",", ".") + f" pct | {rotas} rotas"
-            draw.text(
-                (max(15, x0 - 20), max(45, y0 - 24)),
+            txt_topo = (
+                f"{pacotes:,}".replace(",", ".") + f" pct | {rotas} rotas"
+            )
+            _texto_centralizado(
+                draw,
+                cx,
+                max(66, y0 - 34),
                 txt_topo,
-                fill=(255, 255, 255),
-                font=f_cel,
+                fontes["bar_lbl"],
+                (255, 255, 255),
             )
 
-            if ciclo in medias_map and rotas > 0:
+            if ciclo in medias_map and pd.notna(medias_map[ciclo]) and rotas > 0:
                 media_c = float(medias_map[ciclo])
-                cor_meta = (22, 163, 74) if media_c >= 90.0 else (220, 38, 38)
-                y_mid = (y0 + y_base) // 2 - 10
-                draw.text(
-                    (x0 + 12, y_mid), f"{media_c:.1f}%", fill=cor_meta, font=f_bold
+                cor_meta = (
+                    (34, 197, 94) if media_c >= 90.0 else (248, 113, 113)
+                )
+                y_mid = max(y0 + 10, min(y_base - 38, (y0 + y_base) // 2 - 14))
+                _texto_centralizado(
+                    draw,
+                    cx,
+                    y_mid,
+                    f"{media_c:.1f}%",
+                    fontes["bar_lbl"],
+                    cor_meta,
+                    bg_color=(15, 23, 42),
+                    pad_x=9,
+                    pad_y=5,
                 )
 
-            draw.text(
-                (x0 + 8, y_base + 14), ciclo, fill=(226, 232, 240), font=f_bold
+            _texto_centralizado(
+                draw,
+                cx,
+                y_base + 18,
+                ciclo,
+                fontes["axis_lbl"],
+                (226, 232, 240),
             )
 
         return img
@@ -493,19 +694,19 @@ elif st.session_state.pagina_atual == "OOT":
         fig_oot,
         fig_rotas,
     ):
-        """Gera uma imagem JPG nítida com altura ajustada ao tamanho da tabela e dos gráficos."""
+        """Gera uma imagem JPG nítida com fontes ampliadas para telas grandes."""
         largura = 2000
         margem = 50
         larg_util = largura - 2 * margem
-        altura_cabecalho = 135
-        altura_resumo = 130
+        altura_cabecalho = 145
+        altura_resumo = 140
 
         qtd_ciclos = max(1, len(df_ciclos_resumo))
-        altura_linha_tab = 46
-        altura_tabela = 58 + (qtd_ciclos + 1) * altura_linha_tab
+        altura_linha_tab = 50
+        altura_tabela = 64 + (qtd_ciclos + 1) * altura_linha_tab
 
-        altura_graf_oot = 640 if not df_ondas_resumo.empty else 0
-        altura_graf_rotas = 580
+        altura_graf_oot = 740 if not df_ondas_resumo.empty else 0
+        altura_graf_rotas = 650
 
         altura_total = (
             margem
@@ -520,34 +721,10 @@ elif st.session_state.pagina_atual == "OOT":
             + margem
         )
 
-        try:
-            fonte_titulo = ImageFont.truetype("arialbd.ttf", 36)
-            fonte_sub = ImageFont.truetype("arial.ttf", 22)
-            fonte_kpi_tit = ImageFont.truetype("arialbd.ttf", 19)
-            fonte_kpi_val = ImageFont.truetype("arialbd.ttf", 32)
-            fonte_tab_hdr = ImageFont.truetype("arialbd.ttf", 20)
-            fonte_tab_cel = ImageFont.truetype("arial.ttf", 20)
-            fonte_tab_bold = ImageFont.truetype("arialbd.ttf", 20)
-        except OSError:
-            fonte_titulo = ImageFont.load_default()
-            fonte_sub = ImageFont.load_default()
-            fonte_kpi_tit = ImageFont.load_default()
-            fonte_kpi_val = ImageFont.load_default()
-            fonte_tab_hdr = ImageFont.load_default()
-            fonte_tab_cel = ImageFont.load_default()
-            fonte_tab_bold = ImageFont.load_default()
-
-        fontes_pil = (
-            fonte_titulo,
-            fonte_sub,
-            fonte_kpi_tit,
-            fonte_kpi_val,
-            fonte_tab_hdr,
-            fonte_tab_cel,
-            fonte_tab_bold,
+        fontes = _carregar_fontes_oot()
+        canvas = Image.new(
+            "RGB", (largura, altura_total), color=(248, 249, 250)
         )
-
-        canvas = Image.new("RGB", (largura, altura_total), color=(248, 249, 250))
         draw = ImageDraw.Draw(canvas)
 
         # 1. Cabeçalho
@@ -557,20 +734,23 @@ elif st.session_state.pagina_atual == "OOT":
             fill=(255, 230, 0),
         )
         draw.rectangle(
-            [(margem, y + altura_cabecalho - 8), (largura - margem, y + altura_cabecalho)],
+            [
+                (margem, y + altura_cabecalho - 8),
+                (largura - margem, y + altura_cabecalho),
+            ],
             fill=(30, 58, 138),
         )
         draw.text(
             (margem + 30, y + 24),
             "REPORT DE EXPEDIÇÃO DIÁRIO — OOT (SMG1)",
             fill=(15, 23, 42),
-            font=fonte_titulo,
+            font=fontes["titulo"],
         )
         draw.text(
-            (margem + 30, y + 74),
+            (margem + 30, y + 80),
             f"Emitido em: {date.today().strftime('%d/%m/%Y')}  |  Meta OOT: 90,0%",
             fill=(51, 65, 85),
-            font=fonte_sub,
+            font=fontes["sub"],
         )
 
         # 2. Cards de resumo
@@ -592,8 +772,18 @@ elif st.session_state.pagina_atual == "OOT":
                 outline=(203, 213, 225),
                 width=2,
             )
-            draw.text((x0 + 24, y + 20), tit, fill=(100, 116, 139), font=fonte_kpi_tit)
-            draw.text((x0 + 24, y + 58), val, fill=(15, 23, 42), font=fonte_kpi_val)
+            draw.text(
+                (x0 + 24, y + 20),
+                tit,
+                fill=(100, 116, 139),
+                font=fontes["kpi_tit"],
+            )
+            draw.text(
+                (x0 + 24, y + 60),
+                val,
+                fill=(15, 23, 42),
+                font=fontes["kpi_val"],
+            )
 
         # 3. Tabela resumo por ciclo
         y += altura_resumo + 25
@@ -608,10 +798,10 @@ elif st.session_state.pagina_atual == "OOT":
             (margem + 24, y + 14),
             "RESUMO POR CICLO",
             fill=(15, 23, 42),
-            font=fonte_tab_hdr,
+            font=fontes["tab_hdr"],
         )
 
-        y_tab = y + 48
+        y_tab = y + 52
         col_widths = [
             int(larg_util * 0.28),
             int(larg_util * 0.24),
@@ -621,19 +811,30 @@ elif st.session_state.pagina_atual == "OOT":
         headers = ["Ciclo", "Pacotes", "Rotas", "Média OOT (Meta 90%)"]
 
         draw.rectangle(
-            [(margem + 16, y_tab), (largura - margem - 16, y_tab + altura_linha_tab)],
+            [
+                (margem + 16, y_tab),
+                (largura - margem - 16, y_tab + altura_linha_tab),
+            ],
             fill=(15, 23, 42),
         )
         x_cel = margem + 28
         for h_txt, w_col in zip(headers, col_widths):
-            draw.text((x_cel, y_tab + 12), h_txt, fill=(255, 255, 255), font=fonte_tab_hdr)
+            draw.text(
+                (x_cel, y_tab + 13),
+                h_txt,
+                fill=(255, 255, 255),
+                font=fontes["tab_hdr"],
+            )
             x_cel += w_col
 
         for idx_r, (_, row) in enumerate(df_ciclos_resumo.iterrows()):
             y_row = y_tab + (idx_r + 1) * altura_linha_tab
             bg_row = (248, 250, 252) if idx_r % 2 == 1 else (255, 255, 255)
             draw.rectangle(
-                [(margem + 16, y_row), (largura - margem - 16, y_row + altura_linha_tab)],
+                [
+                    (margem + 16, y_row),
+                    (largura - margem - 16, y_row + altura_linha_tab),
+                ],
                 fill=bg_row,
             )
             draw.line(
@@ -658,52 +859,28 @@ elif st.session_state.pagina_atual == "OOT":
 
             x_cel = margem + 28
             valores_linha = [
-                (str(row["Ciclo"]), fonte_tab_bold, (15, 23, 42)),
-                (pct_fmt, fonte_tab_cel, (30, 41, 59)),
-                (rot_fmt, fonte_tab_cel, (30, 41, 59)),
-                (oot_fmt, fonte_tab_bold, cor_oot),
+                (str(row["Ciclo"]), fontes["tab_bold"], (15, 23, 42)),
+                (pct_fmt, fontes["tab_cel"], (30, 41, 59)),
+                (rot_fmt, fontes["tab_cel"], (30, 41, 59)),
+                (oot_fmt, fontes["tab_bold"], cor_oot),
             ]
             for idx_col, (val_txt, fnt, clr) in enumerate(valores_linha):
-                draw.text((x_cel, y_row + 12), val_txt, fill=clr, font=fnt)
+                draw.text((x_cel, y_row + 13), val_txt, fill=clr, font=fnt)
                 x_cel += col_widths[idx_col]
 
         # 4. Gráfico 1 (OOT)
         y += altura_tabela + 30
         if not df_ondas_resumo.empty and fig_oot is not None:
-            try:
-                bytes_oot = fig_oot.to_image(
-                    format="png",
-                    width=larg_util,
-                    height=altura_graf_oot,
-                    scale=2,
-                )
-                img_oot = Image.open(io.BytesIO(bytes_oot)).convert("RGB")
-                img_oot = img_oot.resize(
-                    (larg_util, altura_graf_oot), Image.Resampling.LANCZOS
-                )
-            except Exception:
-                img_oot = _desenhar_grafico_oot_pil(
-                    df_ondas_resumo, larg_util, altura_graf_oot, fontes_pil
-                )
+            img_oot = _desenhar_grafico_oot_pil(
+                df_ondas_resumo, larg_util, altura_graf_oot, fontes
+            )
             canvas.paste(img_oot, (margem, y))
             y += altura_graf_oot + 30
 
         # 5. Gráfico 2 (Ciclos / Rotas / Pacotes)
-        try:
-            bytes_rotas = fig_rotas.to_image(
-                format="png",
-                width=larg_util,
-                height=altura_graf_rotas,
-                scale=2,
-            )
-            img_rotas = Image.open(io.BytesIO(bytes_rotas)).convert("RGB")
-            img_rotas = img_rotas.resize(
-                (larg_util, altura_graf_rotas), Image.Resampling.LANCZOS
-            )
-        except Exception:
-            img_rotas = _desenhar_grafico_rotas_pil(
-                df_ciclos_resumo, medias_map, larg_util, altura_graf_rotas, fontes_pil
-            )
+        img_rotas = _desenhar_grafico_rotas_pil(
+            df_ciclos_resumo, medias_map, larg_util, altura_graf_rotas, fontes
+        )
         canvas.paste(img_rotas, (margem, y))
 
         buffer = io.BytesIO()
