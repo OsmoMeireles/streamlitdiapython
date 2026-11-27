@@ -290,17 +290,13 @@ elif st.session_state.pagina_atual == "OOT":
         alt_area = y_base - y_topo
         larg_area = x_dir - x_esq
 
-        draw.line([(x_esq, y_topo), (x_esq, y_base)],
-                  fill=(71, 85, 105), width=2)
-        draw.line([(x_esq, y_base), (x_dir, y_base)],
-                  fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
 
         # Linha da meta 90% (escala 0 a 115)
         y_meta = y_base - int((90.0 / 115.0) * alt_area)
-        draw.line([(x_esq, y_meta), (x_dir, y_meta)],
-                  fill=(56, 189, 248), width=3)
-        draw.text((x_dir - 150, y_meta - 24), "Meta 90%",
-                  fill=(56, 189, 248), font=f_cel)
+        draw.line([(x_esq, y_meta), (x_dir, y_meta)], fill=(56, 189, 248), width=3)
+        draw.text((x_dir - 150, y_meta - 24), "Meta 90%", fill=(56, 189, 248), font=f_cel)
 
         n = len(df_ondas_plot)
         if n == 0:
@@ -323,13 +319,10 @@ elif st.session_state.pagina_atual == "OOT":
 
             cor_barra = (22, 163, 74) if val >= 90.0 else (220, 38, 38)
             draw.rectangle([(x0, y0), (x1, y_base)], fill=cor_barra)
-            draw.text((x0 - 4, max(45, y0 - 22)),
-                      f"{val:.1f}%", fill=(255, 255, 255), font=f_cel)
+            draw.text((x0 - 4, max(45, y0 - 22)), f"{val:.1f}%", fill=(255, 255, 255), font=f_cel)
 
-            cor_lbl = (255, 226, 0) if ciclo in ciclos_destaque else (
-                226, 232, 240)
-            draw.text((x0 - 10, y_base + 12 + (i % 2) * 22),
-                      rotulo, fill=cor_lbl, font=f_cel)
+            cor_lbl = (255, 226, 0) if ciclo in ciclos_destaque else (226, 232, 240)
+            draw.text((x0 - 10, y_base + 12 + (i % 2) * 22), rotulo, fill=cor_lbl, font=f_cel)
 
         return img
 
@@ -351,10 +344,8 @@ elif st.session_state.pagina_atual == "OOT":
         alt_area = y_base - y_topo
         larg_area = x_dir - x_esq
 
-        draw.line([(x_esq, y_topo), (x_esq, y_base)],
-                  fill=(71, 85, 105), width=2)
-        draw.line([(x_esq, y_base), (x_dir, y_base)],
-                  fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_topo), (x_esq, y_base)], fill=(71, 85, 105), width=2)
+        draw.line([(x_esq, y_base), (x_dir, y_base)], fill=(71, 85, 105), width=2)
 
         n = len(df_ciclos_plot)
         if n == 0:
@@ -377,20 +368,16 @@ elif st.session_state.pagina_atual == "OOT":
 
             draw.rectangle([(x0, y0), (x1, y_base)], fill=(41, 132, 102))
 
-            txt_topo = f"{pacotes:,}".replace(
-                ",", ".") + f" pct | {rotas} rotas"
-            draw.text((max(15, x0 - 20), max(45, y0 - 24)),
-                      txt_topo, fill=(255, 255, 255), font=f_cel)
+            txt_topo = f"{pacotes:,}".replace(",", ".") + f" pct | {rotas} rotas"
+            draw.text((max(15, x0 - 20), max(45, y0 - 24)), txt_topo, fill=(255, 255, 255), font=f_cel)
 
             if ciclo in medias_map and rotas > 0:
                 media_c = float(medias_map[ciclo])
                 cor_meta = (22, 163, 74) if media_c >= 90.0 else (220, 38, 38)
                 y_mid = (y0 + y_base) // 2 - 10
-                draw.text((x0 + 12, y_mid),
-                          f"{media_c:.1f}%", fill=cor_meta, font=f_bold)
+                draw.text((x0 + 12, y_mid), f"{media_c:.1f}%", fill=cor_meta, font=f_bold)
 
-            draw.text((x0 + 8, y_base + 14), ciclo,
-                      fill=(226, 232, 240), font=f_bold)
+            draw.text((x0 + 8, y_base + 14), ciclo, fill=(226, 232, 240), font=f_bold)
 
         return img
 
@@ -405,7 +392,7 @@ elif st.session_state.pagina_atual == "OOT":
         fig_rotas,
     ):
         """Gera uma imagem JPG reunindo resumo, tabela por ciclo e os dois gráficos."""
-        largura = 3200
+        largura = 2000
         margem = 50
         larg_util = largura - 2 * margem
         altura_cabecalho = 135
@@ -415,8 +402,8 @@ elif st.session_state.pagina_atual == "OOT":
         altura_linha_tab = 44
         altura_tabela = 50 + linhas_tab * altura_linha_tab
 
-        altura_graf_oot = 900 if not df_ondas_resumo.empty else 0
-        altura_graf_rotas = 900
+        altura_graf_oot = 620 if not df_ondas_resumo.empty else 0
+        altura_graf_rotas = 580
 
         altura_total = (
             margem
@@ -432,15 +419,13 @@ elif st.session_state.pagina_atual == "OOT":
         )
 
         try:
-            fonte_titulo = ImageFont.truetype("arialbd.ttf", 72)
-            fonte_sub = ImageFont.truetype("arial.ttf", 44)
-
-            fonte_kpi_tit = ImageFont.truetype("arialbd.ttf", 38)
-            fonte_kpi_val = ImageFont.truetype("arialbd.ttf", 72)
-
-            fonte_tab_hdr = ImageFont.truetype("arialbd.ttf", 40)
-            fonte_tab_cel = ImageFont.truetype("arial.ttf", 38)
-            fonte_tab_bold = ImageFont.truetype("arialbd.ttf", 38)
+            fonte_titulo = ImageFont.truetype("arialbd.ttf", 36)
+            fonte_sub = ImageFont.truetype("arial.ttf", 22)
+            fonte_kpi_tit = ImageFont.truetype("arialbd.ttf", 19)
+            fonte_kpi_val = ImageFont.truetype("arialbd.ttf", 32)
+            fonte_tab_hdr = ImageFont.truetype("arialbd.ttf", 20)
+            fonte_tab_cel = ImageFont.truetype("arial.ttf", 20)
+            fonte_tab_bold = ImageFont.truetype("arialbd.ttf", 20)
         except OSError:
             fonte_titulo = ImageFont.load_default()
             fonte_sub = ImageFont.load_default()
@@ -460,15 +445,9 @@ elif st.session_state.pagina_atual == "OOT":
             fonte_tab_bold,
         )
 
-        fator_hd = 2
-
-        canvas = Image.new(
-            "RGB",
-            (largura * fator_hd, altura_total * fator_hd),
-            color=(248, 249, 250)
-        )
+        canvas = Image.new("RGB", (largura, altura_total),
+                           color=(248, 249, 250))
         draw = ImageDraw.Draw(canvas)
-        scale = fator_hd
 
         # 1. Cabeçalho
         y = margem
@@ -598,10 +577,12 @@ elif st.session_state.pagina_atual == "OOT":
                     format="png",
                     width=larg_util,
                     height=altura_graf_oot,
-                    scale=5,
+                    scale=2,
                 )
                 img_oot = Image.open(io.BytesIO(bytes_oot)).convert("RGB")
-
+                img_oot = img_oot.resize(
+                    (larg_util, altura_graf_oot), Image.Resampling.LANCZOS
+                )
             except Exception:
                 img_oot = _desenhar_grafico_oot_pil(
                     df_ondas_resumo, larg_util, altura_graf_oot, fontes_pil
@@ -615,10 +596,12 @@ elif st.session_state.pagina_atual == "OOT":
                 format="png",
                 width=larg_util,
                 height=altura_graf_rotas,
-                scale=5,
+                scale=2,
             )
             img_rotas = Image.open(io.BytesIO(bytes_rotas)).convert("RGB")
-
+            img_rotas = img_rotas.resize(
+                (larg_util, altura_graf_rotas), Image.Resampling.LANCZOS
+            )
         except Exception:
             img_rotas = _desenhar_grafico_rotas_pil(
                 df_ciclos_resumo, medias_map, larg_util, altura_graf_rotas, fontes_pil
@@ -626,34 +609,8 @@ elif st.session_state.pagina_atual == "OOT":
         canvas.paste(img_rotas, (margem, y))
 
         buffer = io.BytesIO()
-        canvas = canvas.resize(
-            (largura, altura_total),
-            Image.Resampling.LANCZOS
-        )
-
-        buffer_jpg = io.BytesIO()
-
-        canvas.save(
-            buffer_jpg,
-            format="JPEG",
-            quality=100,
-            optimize=True,
-            subsampling=0,
-            dpi=(300, 300)
-        )
-
-        buffer_png = io.BytesIO()
-
-        canvas.save(
-            buffer_png,
-            format="PNG",
-            optimize=True
-        )
-
-        return {
-            "jpg": buffer_jpg.getvalue(),
-            "png": buffer_png.getvalue()
-        }
+        canvas.save(buffer, format="JPEG", quality=98, subsampling=0)
+        return buffer.getvalue()
 
     if "oot_dados" not in st.session_state:
         st.session_state.oot_dados = {
@@ -839,9 +796,7 @@ elif st.session_state.pagina_atual == "OOT":
                 marker_color=cores_barras,
                 text=[f"{val:.1f}%" for val in df_ondas["OOT (%)"]],
                 textposition="outside",
-                textfont=dict(size=28,
-                              color="white",
-                              family="Arial Black"),
+                textfont=dict(size=16, color="white"),
                 name="Performance OOT (%)",
             )
         )
@@ -859,9 +814,7 @@ elif st.session_state.pagina_atual == "OOT":
         fig_oot.update_layout(
             paper_bgcolor="black",
             plot_bgcolor="black",
-            font=dict(color="white",
-                      size=24,
-                      family="Arial Black"),
+            font=dict(color="white", size=14),
             yaxis=dict(title="Performance (%)", range=[
                        0, 118], gridcolor="#1e293b"),
             xaxis=dict(
@@ -870,7 +823,7 @@ elif st.session_state.pagina_atual == "OOT":
                 tickvals=df_ondas["Ciclo_Onda"],
                 ticktext=labels_eixo_x,
                 tickangle=-25,
-                tickfont=dict(size=20),
+                tickfont=dict(size=13),
             ),
             barmode="group",
             legend=dict(
@@ -941,9 +894,7 @@ elif st.session_state.pagina_atual == "OOT":
                 marker_color="#298466",
                 text=textos_ciclos,
                 textposition="outside",
-                textfont=dict(size=26,
-                              color="white",
-                              family="Arial Black"),
+                textfont=dict(size=16, color="white"),
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     "Rotas: %{y}<br>"
@@ -958,9 +909,7 @@ elif st.session_state.pagina_atual == "OOT":
     fig_rotas.update_layout(
         paper_bgcolor="black",
         plot_bgcolor="black",
-        font=dict(color="white",
-                  size=24,
-                  family="Arial Black"),
+        font=dict(color="white", size=16),
         yaxis=dict(
             title="Quantidade de Rotas",
             range=[0, limite_y_rotas],
@@ -977,7 +926,7 @@ elif st.session_state.pagina_atual == "OOT":
     st.divider()
 
     # --- Botão único para baixar tudo em JPG ---
-    arquivos = gerar_reporte_oot_jpg(
+    jpg_completo = gerar_reporte_oot_jpg(
         total_pacotes=total_pacotes,
         total_rotas=total_rotas,
         media_oot=media_oot,
@@ -987,22 +936,10 @@ elif st.session_state.pagina_atual == "OOT":
         fig_oot=fig_oot,
         fig_rotas=fig_rotas,
     )
-    col1, col2 = st.columns(2)
-
-with col1:
     st.download_button(
-        label="📥 Baixar Reporte OOT (JPG)",
-        data=arquivos["jpg"],
+        label="📥 Baixar Reporte Completo OOT (JPG)",
+        data=jpg_completo,
         file_name=f"reporte_completo_oot_{date.today().strftime('%d_%m_%Y')}.jpg",
         mime="image/jpeg",
-        use_container_width=True,
-    )
-
-with col2:
-    st.download_button(
-        label="📥 Baixar Reporte OOT (PNG HD)",
-        data=arquivos["png"],
-        file_name=f"reporte_completo_oot_{date.today().strftime('%d_%m_%Y')}.png",
-        mime="image/png",
         use_container_width=True,
     )
